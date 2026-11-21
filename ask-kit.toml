@@ -1,0 +1,54 @@
+id = "temet.api"
+name = "api"
+version = "0.1.0"
+min_ask_kit = "0.3.0"
+says = "one HTTP API that has an OpenAPI (Swagger) document: which endpoints it has and which tag or path holds a job, what an endpoint takes (path, query, header and body parameters) and returns, what status codes it answers with, whether the API is up and the token works, what a call returns (one call, or every page of a list), and acting on it (a request that creates, updates or deletes data)"
+keywords = ["openapi", "swagger", "endpoints?", "api (docs?|spec|schema|token|key)", "rest api", "http api", "request bod(y|ies)", "status codes?", "paginat\\w+", "curl"]
+route_hint = "the endpoints of one HTTP API with an OpenAPI document, what an endpoint takes and returns, and calling it, are api; GitHub and GitLab have their own kits (github, gitlab), which also know pull requests, CI and merge requests; what a web page or an online docs site says is web; whether a host or URL answers at all (DNS, certificate, status) is net; an API defined in this repository's own source (routes, handlers, a spec in the repo as code to read) is code; what a past session did with an API is sessions"
+cite = "the operation (METHOD /path and its operationId), the status code of a call, and the field names read from the answer"
+instructions = "instructions.md"
+scripts = "scripts"
+bench = "bench/questions.json"
+acts = ["any request that changes the API's data (POST, PUT, PATCH or DELETE, sent with api.call or api.pages); a POST the document marks x-readonly, or API_READ_POSTS names, is a reading call and runs"]
+
+[[settings]]
+key = "API_SPEC"
+about = "the API's OpenAPI or Swagger document: a URL or a file path, JSON or YAML. It is fetched without the credential; for one that needs it, save a copy to a file and give the path"
+required = true
+
+[[settings]]
+key = "API_BASE_URL"
+about = "the address requests go to, such as https://api.example.com/v2; by default the first `servers` entry of the document"
+default = ""
+
+[[settings]]
+key = "API_TOKEN"
+about = "the credential the API wants (a bearer token, an API key, or user:password for basic auth); it is added to requests by the kit and never shown. Leave it empty for an API that needs none"
+default = ""
+secret = true
+
+[[settings]]
+key = "API_AUTH"
+about = "how the credential is sent when the document does not say: bearer, basic, header:<Name> or query:<name>; by default what the document's security scheme says, else bearer"
+default = ""
+
+[[settings]]
+key = "API_READ_POSTS"
+about = "POST operations that only read (a search), as operationIds or paths separated by commas, for a document that does not mark them x-readonly: true; they run without a request to change things"
+default = ""
+
+[[settings]]
+key = "API_NAME"
+about = "what to call this API in answers"
+default = ""
+
+[[settings]]
+key = "WORKDIR"
+about = "the folder a relative API_SPEC path starts at; by default the folder the agent runs in"
+detect = ["node", "-e", "process.stdout.write(process.cwd())"]
+
+[[sources]]
+kind = "module"
+name = "api"
+module = "api.mjs"
+api = "api.d.ts"

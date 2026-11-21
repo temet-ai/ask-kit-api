@@ -1,0 +1,421 @@
+# A fixture for the api kit: a small API for the Ankh-Morpork City Watch.
+# server.mjs in this folder implements it on 127.0.0.1.
+openapi: 3.1.0
+info:
+  title: Ankh-Morpork City Watch API
+  version: 1.4.2
+  description: |
+    Guards, the posts they work from, patrols and incidents of the
+    Ankh-Morpork City Watch.
+
+    Lists are paged in three ways, one per collection, as the API grew.
+servers:
+  - url: http://127.0.0.1:8765
+    description: the fixture server
+security:
+  - watchBearer: []
+tags:
+  - name: guards
+    description: Officers of the Watch, their rank and post
+  - name: posts
+    description: Watch houses
+  - name: patrols
+    description: Who walks which beat, and when
+  - name: incidents
+    description: >-
+      What was reported to the Watch, from stolen sausages
+      to dragons
+  - name: service
+    description: The API itself
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Whether the API is up
+      tags: [service]
+      security: []
+      responses:
+        '200':
+          description: The API answers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+                  city: { type: string }
+  /session:
+    get:
+      operationId: getSession
+      summary: Who the credential belongs to
+      tags: [service]
+      responses:
+        '200':
+          description: The officer the token was issued to
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guard: { type: string }
+                  token: { type: string, description: The token that was sent }
+                  api_key: { type: string }
+                  token_type: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+  /guards:
+    get:
+      operationId: listGuards
+      summary: List the guards
+      description: Guards in order of badge number. Paged with `page` and `per_page`; the Link header holds the next page.
+      tags: [guards]
+      parameters:
+        - name: rank
+          in: query
+          description: Only guards of this rank
+          schema:
+            $ref: '#/components/schemas/Rank'
+        - name: post
+          in: query
+          description: Only guards working from this post (its id)
+          schema: { type: string }
+        - $ref: '#/components/parameters/Page'
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 5, maximum: 50 }
+      responses:
+        '200':
+          description: One page of guards
+          headers:
+            Link:
+              description: rel="next" when there is another page
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guard'
+        '401':
+          $ref: '#/components/responses/Unauthorised'
+  /guards/search:
+    post:
+      operationId: searchGuards
+      summary: Search guards by name, rank or species
+      description: Reads only. It is a POST because the query is a body.
+      tags: [guards]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, description: Part of a name }
+                rank:
+                  $ref: '#/components/schemas/Rank'
+                species: { type: string }
+      responses:
+        '200':
+          description: The guards that fit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Guard'
+  /guards/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The guard's id, such as vimes
+        schema: { type: string }
+    get:
+      operationId: getGuard
+      summary: One guard
+      tags: [guards]
+      responses:
+        '200':
+          description: The guard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guard'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateGuard
+      summary: Change a guard's rank or post
+      tags: [guards]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rank:
+                  $ref: '#/components/schemas/Rank'
+                post: { type: string, description: A post id }
+      responses:
+        '200':
+          description: The guard after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guard'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /posts:
+    get:
+      operationId: listPosts
+      summary: List the Watch houses
+      tags: [posts]
+      responses:
+        '200':
+          description: Every post
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+  /patrols:
+    get:
+      operationId: listPatrols
+      summary: List patrols
+      description: Paged with `offset` and `limit`; the answer holds `total`.
+      tags: [patrols]
+      parameters:
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 3 }
+        - name: shift
+          in: query
+          schema: { type: string, enum: [day, night] }
+      responses:
+        '200':
+          description: One page of patrols
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, patrols]
+                properties:
+                  total: { type: integer }
+                  offset: { type: integer }
+                  limit: { type: integer }
+                  patrols:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Patrol'
+  /incidents:
+    get:
+      operationId: listIncidents
+      summary: List incidents, newest first
+      description: Paged with a cursor. Send the answer's `next_cursor` as `cursor`.
+      tags: [incidents]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, closed] }
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 4 }
+      responses:
+        '200':
+          description: One page of incidents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  next_cursor:
+                    type: [string, 'null']
+    post:
+      operationId: createIncident
+      summary: Report an incident
+      tags: [incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewIncident'
+      responses:
+        '201':
+          description: The incident as recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          description: The report lacks a title or a post
+  /incidents/search:
+    post:
+      operationId: searchIncidents
+      summary: Search incidents by words in the title
+      tags: [incidents]
+      x-readonly: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [words]
+              properties:
+                words: { type: string }
+                status: { type: string, enum: [open, closed] }
+      responses:
+        '200':
+          description: The incidents that fit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+  /incidents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: The incident's id, such as WATCH-12
+        schema: { type: string, pattern: '^WATCH-\d+$' }
+    get:
+      operationId: getIncident
+      summary: One incident
+      tags: [incidents]
+      responses:
+        '200':
+          description: The incident
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteIncident
+      summary: Strike an incident from the record
+      tags: [incidents]
+      responses:
+        '204':
+          description: Struck
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /elsewhere:
+    get:
+      operationId: getElsewhere
+      summary: Redirects to the Patrician's office, which is another host
+      tags: [service]
+      responses:
+        '302':
+          description: A redirect out of this API
+components:
+  securitySchemes:
+    watchBearer:
+      type: http
+      scheme: bearer
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: The page, from 1
+      schema: { type: integer, default: 1 }
+  responses:
+    Unauthorised:
+      description: No token, or not one the Watch issued
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Nothing with that id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Rank:
+      type: string
+      enum: [commander, captain, sergeant, corporal, constable, lance-constable]
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        message: { type: string }
+    Post:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        district: { type: string }
+    Guard:
+      type: object
+      required: [id, name, rank]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        badge: { type: integer, description: The badge number. Vimes carries 177. }
+        rank:
+          $ref: '#/components/schemas/Rank'
+        species: { type: string }
+        post:
+          $ref: '#/components/schemas/Post'
+        joined: { type: string, format: date }
+        locker_password:
+          type: string
+          description: The word that opens the guard's locker
+    Patrol:
+      type: object
+      properties:
+        id: { type: integer }
+        beat: { type: string }
+        shift: { type: string, enum: [day, night] }
+        guards:
+          type: array
+          items: { type: string }
+          description: Guard ids
+    NewIncident:
+      type: object
+      required: [title, post]
+      properties:
+        title: { type: string }
+        post: { type: string, description: The id of the post it was reported at }
+        reported_by: { type: string }
+    Incident:
+      allOf:
+        - $ref: '#/components/schemas/NewIncident'
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string, description: 'Such as WATCH-12' }
+            status: { type: string, enum: [open, closed] }
+            opened: { type: string, format: date-time }
+            assigned_to:
+              oneOf:
+                - $ref: '#/components/schemas/Guard'
+                - type: 'null'
