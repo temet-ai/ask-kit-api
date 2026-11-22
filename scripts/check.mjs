@@ -9,11 +9,10 @@ export default async function ({ api }) {
   const info = await api.info();
   const probes = await api.probes();
   const picks = [...probes.open.slice(0, 1), ...probes.guarded.slice(0, 2)];
-  const tried = [];
-  for (const p of picks) {
+  const tried = await Promise.all(picks.map(async (p) => {
     const r = await api.call(p.id, {});
-    tried.push({ op: r.op, takesCredential: p.takesCredential, status: r.status, ok: r.ok, ms: r.ms, ...(r.error ? { error: r.error } : {}), ...(r.hint ? { hint: r.hint } : {}) });
-  }
+    return { op: r.op, takesCredential: p.takesCredential, status: r.status, ok: r.ok, ms: r.ms, ...(r.error ? { error: r.error } : {}), ...(r.hint ? { hint: r.hint } : {}) };
+  }));
   const answered = tried.some((t) => t.status != null);
   const guarded = tried.filter((t) => t.takesCredential);
   const good = guarded.find((t) => t.ok);

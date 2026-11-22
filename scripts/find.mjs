@@ -16,9 +16,7 @@ export default async function ({ api }, { words, tag, method, max = 12, describe
     if (exact) found = [{ id: exact.id, op: exact.op, does: exact.summary ?? "", ...(exact.changes ? { changes: true } : {}) }, ...found.filter((o) => o.id !== exact.id)];
   }
   const shown = found.slice(0, Number(max) || 12);
-  const described = [];
-  for (const o of shown.slice(0, Math.max(0, Number(describe))))
-    described.push(await api.describe(o.id, { depth: 3 }));
+  const described = await Promise.all(shown.slice(0, Math.max(0, Number(describe))).map((o) => api.describe(o.id, { depth: 3 })));
   return {
     verdict: found.length ? `${plural(found.length, "operation")} fit${found.length === 1 ? "s" : ""} "${words ?? ""}"; best: ${shown[0].op} (${shown[0].id})` : `no operation fits "${words ?? ""}"; scripts.run("overview") lists the tags`,
     found: found.length,
